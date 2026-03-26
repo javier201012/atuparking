@@ -1,0 +1,75 @@
+:root {
+  --sand: #efe5d2;
+  --sand-deep: #dcc8a5;
+  --pine: #233127;
+  --pine-soft: #395243;
+  --clay: #a55d3b;
+  --cream: #f8f4ec;
+  --ink: #182018;
+  --muted: #586456;
+  --line: rgba(24, 32, 24, 0.12);
+  --panel: rgba(248, 244, 236, 0.7);
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+  --font-body: 'Trebuchet MS', 'Gill Sans', 'Segoe UI', sans-serif;
+  font-family: var(--font-body);
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(220, 200, 165, 0.55), transparent 34%),
+    linear-gradient(180deg, #f6efe1 0%, #efe5d2 48%, #e6dac1 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(35, 49, 39, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(35, 49, 39, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.75), transparent 95%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  color: var(--pine);
+}

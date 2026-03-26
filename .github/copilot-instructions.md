@@ -1,0 +1,5 @@
+- Proyecto Vite + React para una web de parking de caravanas.
+- Mantener el contenido principal en espanol.
+- Priorizar una estetica calida, natural y profesional.
+- Evitar dependencias innecesarias para la landing inicial.
+- Scripts disponibles: `npm run dev`, `npm run build`, `npm run lint`, `npm run preview`.
