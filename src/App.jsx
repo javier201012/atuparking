@@ -1,5 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
+import {
+  BRAND_NAME,
+  calculateFirstMonthCharge,
+  formatCurrency,
+  MONTHLY_RATE_CENTS,
+} from '../booking.js'
 
 const logoImage =
   '/freepik_quiero-un-logo-profesional-para-mi-pagina-web-de-alquiler-de-caravanas-se-llama-serviparking-debe-de-ser-de-colores-azules_0001.png'
@@ -30,84 +36,155 @@ const featureCards = [
     text: 'Recinto hormigonado dentro de poligono industrial, pensado para entrar y salir con comodidad y sin maniobras tensas.',
   },
   {
-    title: 'Ubicacion util para el dia a dia',
-    text: 'Una base practica muy cerca de Fuenlabrada, Humanes y Moraleja de En Medio para tener la caravana bien situada.',
+    title: 'Primer pago prorrateado',
+    text: 'El alta inicial se calcula a 2 euros al dia segun los dias que falten hasta final de mes. Despues la cuota vuelve a 60 euros.',
   },
   {
-    title: 'Decision rapida y sin friccion',
-    text: 'Precio mensual claro, acceso visible en Google Maps y contacto directo para resolver disponibilidad en poco tiempo.',
+    title: 'Disponibilidad visible y editable',
+    text: 'Las fechas de entrada salen del backend y puedes bloquear o liberar dias desde un panel admin sencillo.',
   },
 ]
 
 const quickFacts = [
-  { value: '60 EUR', label: 'cuota mensual fija' },
-  { value: '24/7', label: 'acceso de consulta y coordinacion' },
-  { value: '3 municipios', label: 'cerca de Fuenlabrada, Humanes y Moraleja' },
+  { value: '2 EUR/dia', label: 'alta inicial hasta fin de mes' },
+  { value: formatCurrency(MONTHLY_RATE_CENTS), label: 'renovacion el primer dia de cada mes' },
+  { value: '90 dias', label: 'ventana de fechas gestionable' },
 ]
 
 const valueItems = [
   'Espacio hormigonado para un uso mas comodo y limpio.',
   'Entorno industrial con accesos pensados para vehiculos de volumen.',
-  'Ubicacion funcional para guardar la caravana entre escapadas.',
-  'Proceso simple: consulta, disponibilidad, instrucciones y acceso.',
+  'Primer cobro justo, sin obligar a pagar un mes entero si entras a mitad.',
+  'Panel admin simple para bloquear dias ocupados o reservar huecos manualmente.',
 ]
 
 const processSteps = [
   {
-    title: 'Ponte en contacto',
-    text: 'Escribe o llama para contar que tipo de vehiculo quieres guardar y desde cuando te interesa la plaza.',
+    title: 'Elige la fecha de entrada',
+    text: 'La web muestra solo dias disponibles. Asi el cliente no intenta pagar una fecha ya ocupada.',
   },
   {
-    title: 'Verifica disponibilidad',
-    text: 'Se confirma si hay hueco y se resuelven dudas sobre acceso, ubicacion y condiciones del aparcamiento.',
+    title: 'Se calcula el alta inicial',
+    text: 'Stripe cobra el primer periodo a 2 euros por dia hasta fin de mes y deja preparada la renovacion automatica.',
   },
   {
-    title: 'Recibe instrucciones',
-    text: 'Con la plaza confirmada, recibes indicaciones claras para entrar al recinto y empezar la estancia mensual.',
+    title: 'Renovacion mensual ordenada',
+    text: 'Desde el mes siguiente la cuota se renueva el primer dia de cada mes con la tarifa mensual habitual de 60 euros.',
   },
 ]
 
 const faqItems = [
   {
-    question: 'Que incluye la cuota mensual?',
-    answer: 'Incluye el uso de la plaza mensual en el aparcamiento por 60 euros al mes, con acceso coordinado e informacion directa para la entrada.',
+    question: 'Como funciona el primer pago?',
+    answer: 'El primer cobro se calcula por dias restantes del mes a 2 euros al dia. Si entras el 20, solo pagas del 20 al final de ese mes.',
   },
   {
-    question: 'Para que tipo de vehiculos es adecuado?',
-    answer: 'Esta pensado para caravanas, autocaravanas y remolques que necesiten una base comoda y bien ubicada entre viajes.',
+    question: 'Cuando se renueva despues?',
+    answer: 'La suscripcion queda preparada para renovarse automaticamente el primer dia de cada mes con la cuota mensual de 60 euros.',
+  },
+  {
+    question: 'Puedo cambiar las fechas disponibles yo mismo?',
+    answer: 'Si. La landing incluye un panel admin basico protegido por contrasena para bloquear o liberar dias de entrada.',
   },
   {
     question: 'Donde esta exactamente?',
     answer: 'En Calle Malva 4, Humanes, dentro de poligono industrial y muy cerca de Fuenlabrada y Moraleja de En Medio.',
   },
-  {
-    question: 'Puedo pagar online?',
-    answer: 'Si. La web ya incorpora pago con Stripe para iniciar la contratacion mensual de forma directa.',
-  },
 ]
 
-const availableDates = Array.from({ length: 12 }, (_, index) => {
-  const date = new Date()
-  date.setDate(date.getDate() + index + 1)
+const emptyAvailability = {
+  calendar: [],
+  availableDates: [],
+  unavailableDates: [],
+  isFullyBooked: false,
+  updatedAt: null,
+}
 
-  while (date.getDay() === 0) {
-    date.setDate(date.getDate() + 1)
+function normalizeFullyBooked(value, fallback = false) {
+  if (typeof value === 'boolean') {
+    return value
   }
 
+  if (value === 'true') {
+    return true
+  }
+
+  if (value === 'false') {
+    return false
+  }
+
+  return fallback
+}
+
+function normalizeAvailabilityResponse(data, fallback = emptyAvailability) {
   return {
-    iso: date.toISOString().slice(0, 10),
-    label: date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: 'short',
-    }),
-    weekday: date.toLocaleDateString('es-ES', { weekday: 'short' }),
+    calendar: Array.isArray(data.calendar) ? data.calendar : [],
+    availableDates: Array.isArray(data.availableDates) ? data.availableDates : [],
+    unavailableDates: Array.isArray(data.unavailableDates) ? data.unavailableDates : [],
+    isFullyBooked: normalizeFullyBooked(data.isFullyBooked, fallback.isFullyBooked),
+    updatedAt: data.updatedAt || fallback.updatedAt || null,
   }
-})
+}
+
+async function requestAvailability() {
+  const response = await fetch(`${apiBaseUrl}/api/availability`)
+  const responseText = await response.text()
+
+  let data = {}
+
+  if (responseText) {
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      throw new Error('La API de disponibilidad no ha devuelto JSON valido.')
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(data.error || 'No se pudo cargar la disponibilidad.')
+  }
+
+  return normalizeAvailabilityResponse(data)
+}
+
+function formatUpdatedAt(value) {
+  if (!value) {
+    return 'Sin cambios guardados todavia.'
+  }
+
+  const parsed = new Date(value)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Sin cambios guardados todavia.'
+  }
+
+  return parsed.toLocaleString('es-ES')
+}
+
+function isCurrentMonthDate(dateIso, referenceDate = new Date()) {
+  if (typeof dateIso !== 'string') {
+    return false
+  }
+
+  const [year, month] = dateIso.split('-').map(Number)
+
+  return year === referenceDate.getFullYear() && month === referenceDate.getMonth() + 1
+}
 
 function App() {
   const [paymentError, setPaymentError] = useState('')
+  const [availabilityError, setAvailabilityError] = useState('')
+  const [adminError, setAdminError] = useState('')
+  const [adminSuccess, setAdminSuccess] = useState('')
+  const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(true)
   const [isRedirectingToCheckout, setIsRedirectingToCheckout] = useState(false)
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
+  const [isSavingAvailability, setIsSavingAvailability] = useState(false)
+  const [availability, setAvailability] = useState(emptyAvailability)
+  const [adminPassword, setAdminPassword] = useState('')
+  const [adminUnavailableDates, setAdminUnavailableDates] = useState([])
+  const [adminFullyBooked, setAdminFullyBooked] = useState(false)
   const [checkoutForm, setCheckoutForm] = useState({
     firstName: '',
     lastName: '',
@@ -115,9 +192,67 @@ function App() {
     phone: '',
     dni: '',
     plate: '',
-    startDate: availableDates[0]?.iso ?? '',
+    startDate: '',
   })
   const checkoutStatus = new URLSearchParams(window.location.search).get('checkout')
+
+  useEffect(() => {
+    let ignore = false
+
+    async function loadAvailability() {
+      try {
+        setAvailabilityError('')
+        setIsAvailabilityLoading(true)
+        const data = await requestAvailability()
+
+        if (ignore) {
+          return
+        }
+
+        setAvailability(data)
+        setAdminUnavailableDates(data.unavailableDates)
+        setAdminFullyBooked(Boolean(data.isFullyBooked))
+        setCheckoutForm((current) => {
+          const monthAvailableDates = data.calendar.filter(
+            (date) => date.available && isCurrentMonthDate(date.iso),
+          )
+          const selectedStillAvailable = monthAvailableDates.some((date) => date.iso === current.startDate)
+
+          return {
+            ...current,
+            startDate: selectedStillAvailable
+              ? current.startDate
+              : (monthAvailableDates[0]?.iso ?? ''),
+          }
+        })
+      } catch (error) {
+        if (!ignore) {
+          setAvailabilityError(
+            error instanceof Error
+              ? error.message
+              : 'No se pudo cargar la disponibilidad.',
+          )
+        }
+      } finally {
+        if (!ignore) {
+          setIsAvailabilityLoading(false)
+        }
+      }
+    }
+
+    void loadAvailability()
+
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  const currentMonthCalendar = availability.calendar.filter((date) => isCurrentMonthDate(date.iso))
+  const currentMonthAvailableDates = currentMonthCalendar.filter((date) => date.available)
+
+  const selectedCharge = checkoutForm.startDate
+    ? calculateFirstMonthCharge(checkoutForm.startDate)
+    : null
 
   function openCheckoutModal() {
     setPaymentError('')
@@ -132,6 +267,22 @@ function App() {
     setIsCheckoutModalOpen(false)
   }
 
+  function openAdminModal() {
+    setAdminError('')
+    setAdminSuccess('')
+    setAdminUnavailableDates(availability.unavailableDates)
+    setAdminFullyBooked(availability.isFullyBooked)
+    setIsAdminModalOpen(true)
+  }
+
+  function closeAdminModal() {
+    if (isSavingAvailability) {
+      return
+    }
+
+    setIsAdminModalOpen(false)
+  }
+
   function updateCheckoutField(field, value) {
     setCheckoutForm((current) => ({
       ...current,
@@ -139,8 +290,111 @@ function App() {
     }))
   }
 
+  function toggleAdminDate(dateIso) {
+    setAdminSuccess('')
+    setAdminError('')
+    setAdminUnavailableDates((current) => (
+      current.includes(dateIso)
+        ? current.filter((value) => value !== dateIso)
+        : [...current, dateIso].sort((left, right) => left.localeCompare(right))
+    ))
+  }
+
+  async function handleSaveAvailability(event) {
+    event.preventDefault()
+
+    if (!adminPassword) {
+      setAdminError('Escribe la contrasena del panel admin antes de guardar.')
+      return
+    }
+
+    try {
+      setIsSavingAvailability(true)
+      setAdminError('')
+      setAdminSuccess('')
+
+      const response = await fetch(`${apiBaseUrl}/api/admin/availability`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          password: adminPassword,
+          unavailableDates: adminUnavailableDates,
+          isFullyBooked: adminFullyBooked,
+        }),
+      })
+
+      const responseText = await response.text()
+      let data = {}
+
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText)
+        } catch {
+          throw new Error('La API admin no ha devuelto JSON valido.')
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo guardar la disponibilidad.')
+      }
+
+      const savedAvailability = normalizeAvailabilityResponse(data, {
+        ...availability,
+        unavailableDates: adminUnavailableDates,
+        isFullyBooked: adminFullyBooked,
+      })
+      let nextAvailability = savedAvailability
+
+      try {
+        nextAvailability = await requestAvailability()
+      } catch {
+        nextAvailability = savedAvailability
+      }
+
+      setAvailability(nextAvailability)
+      setAdminUnavailableDates(nextAvailability.unavailableDates)
+      setAdminFullyBooked(nextAvailability.isFullyBooked)
+      setCheckoutForm((current) => {
+        const monthAvailableDates = nextAvailability.calendar.filter(
+          (date) => date.available && isCurrentMonthDate(date.iso),
+        )
+        const selectedStillAvailable = monthAvailableDates.some(
+          (date) => date.iso === current.startDate,
+        )
+
+        return {
+          ...current,
+          startDate: selectedStillAvailable
+            ? current.startDate
+            : (monthAvailableDates[0]?.iso ?? ''),
+        }
+      })
+      setAdminSuccess('Disponibilidad guardada correctamente.')
+    } catch (error) {
+      setAdminError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo guardar la disponibilidad.',
+      )
+    } finally {
+      setIsSavingAvailability(false)
+    }
+  }
+
   async function handleStripeCheckout(event) {
     event.preventDefault()
+
+    if (availability.isFullyBooked) {
+      setPaymentError('Estamos completos en este momento.')
+      return
+    }
+
+    if (currentMonthAvailableDates.length === 0) {
+      setPaymentError('No quedan fechas de entrada disponibles este mes.')
+      return
+    }
 
     if (
       !checkoutForm.firstName ||
@@ -196,8 +450,7 @@ function App() {
     <main className="page-shell" id="top">
       {checkoutStatus === 'success' ? (
         <div className="status-banner success-banner">
-          Pago iniciado correctamente. Stripe ha confirmado la operacion y ya
-          puedes seguir con el alta de la plaza mensual.
+          Pago iniciado correctamente. El alta inicial se ha enviado a Stripe y la renovacion quedara programada para el primer dia de cada mes.
         </div>
       ) : null}
 
@@ -207,16 +460,20 @@ function App() {
         </div>
       ) : null}
 
+      {availabilityError ? (
+        <div className="status-banner error-banner">{availabilityError}</div>
+      ) : null}
+
       {paymentError ? (
         <div className="status-banner error-banner">{paymentError}</div>
       ) : null}
 
       <header className="site-header">
         <a className="brand-lockup" href="#top">
-          <img className="brand-mark" src={logoImage} alt="Serviparking" />
+          <img className="brand-mark" src={logoImage} alt={BRAND_NAME} />
           <div>
-            <p className="brand-name">Serviparking</p>
-            <p className="brand-subtitle">Servicio de aparcamiento para caravanas</p>
+            <p className="brand-name">{BRAND_NAME}</p>
+            <p className="brand-subtitle">Parking mensual para caravanas</p>
           </div>
         </a>
 
@@ -226,13 +483,16 @@ function App() {
               {item.label}
             </a>
           ))}
+          <button className="nav-admin-button" type="button" onClick={openAdminModal}>
+            Admin
+          </button>
         </nav>
 
         <button
           className="header-pay-button"
           type="button"
           onClick={openCheckoutModal}
-          disabled={isRedirectingToCheckout}
+          disabled={isRedirectingToCheckout || isAvailabilityLoading}
         >
           {isRedirectingToCheckout ? 'Redirigiendo...' : 'Reservar plaza'}
         </button>
@@ -240,8 +500,8 @@ function App() {
 
       <section className="hero-section modern-hero">
         <div className="hero-copy">
-          <p className="eyebrow">Aparcamiento mensual para caravanas</p>
-          <h1>Reserva facil una plaza bien ubicada en Humanes para tu caravana.</h1>
+          <p className="eyebrow">Parking mensual para caravanas</p>
+          <h1>Reserva una plaza en Humanes con alta inicial prorrateada y renovacion fija el primer dia de cada mes.</h1>
 
           <aside className="hero-panel offer-panel" aria-label="Resumen comercial principal">
             <p className="panel-label">Resumen principal</p>
@@ -251,12 +511,12 @@ function App() {
                 <p>Hormigonado y dentro de poligono industrial.</p>
               </div>
               <div>
-                <span className="hero-panel-key">Direccion</span>
-                <p>Calle Malva 4, Humanes.</p>
+                <span className="hero-panel-key">Alta inicial</span>
+                <p>2 euros al dia hasta final de mes.</p>
               </div>
               <div>
-                <span className="hero-panel-key">Ubicacion</span>
-                <p>Muy cerca de Fuenlabrada, Humanes y Moraleja de En Medio.</p>
+                <span className="hero-panel-key">Renovacion</span>
+                <p>{formatCurrency(MONTHLY_RATE_CENTS)} el primer dia de cada mes.</p>
               </div>
               <div>
                 <span className="hero-panel-key">Telefono</span>
@@ -267,8 +527,12 @@ function App() {
                 <a href="mailto:ganiveamaja@gmail.com">ganiveamaja@gmail.com</a>
               </div>
               <div>
-                <span className="hero-panel-key">Precio</span>
-                <p className="hero-panel-price">60 euros al mes</p>
+                <span className="hero-panel-key">Disponibilidad</span>
+                <p>
+                  {isAvailabilityLoading
+                    ? 'Cargando fechas...'
+                    : `${availability.availableDates.length} fechas abiertas ahora`}
+                </p>
               </div>
             </div>
 
@@ -283,9 +547,9 @@ function App() {
           </aside>
 
           <p className="lead">
-            Serviparking presenta el espacio con una estructura moderna: acceso
-            rapido a informacion clave, tarifa mensual visible, ubicacion bien
-            explicada y un recorrido sencillo hasta el contacto o el pago.
+            {BRAND_NAME} deja claro desde la primera pantalla cuanto se paga al entrar,
+            cuando se renueva y que fechas siguen libres. La idea es vender mejor sin
+            complicarte la gestion diaria.
           </p>
 
           <div className="hero-actions">
@@ -293,12 +557,12 @@ function App() {
               className="primary-action payment-button"
               type="button"
               onClick={openCheckoutModal}
-              disabled={isRedirectingToCheckout}
+              disabled={isRedirectingToCheckout || isAvailabilityLoading}
             >
-              {isRedirectingToCheckout ? 'Redirigiendo a Stripe...' : 'Pagar con Stripe'}
+              {isRedirectingToCheckout ? 'Redirigiendo a Stripe...' : 'Reservar con Stripe'}
             </button>
             <a className="secondary-action" href="#contacto">
-              Hablar ahora
+              Contactar ahora
             </a>
           </div>
 
@@ -325,12 +589,11 @@ function App() {
 
       <section className="split-section enriched-section">
         <div>
-          <p className="section-kicker">Por que elegir Serviparking</p>
-          <h2>Una presentacion mas completa para que el cliente tome la decision con menos dudas.</h2>
+          <p className="section-kicker">Por que elegir {BRAND_NAME}</p>
+          <h2>Una landing mas util para vender, cobrar mejor y controlar la ocupacion real.</h2>
           <p className="section-lead">
-            El contenido ya no se limita a enseñar datos: ahora explica el valor
-            del aparcamiento, reduce friccion y pone delante lo que de verdad
-            importa para quien busca una plaza mensual.
+            Ya no dependes de un calendario fijo en el frontend. Las fechas disponibles se
+            leen del backend y el primer cobro se calcula automaticamente segun el dia de entrada.
           </p>
         </div>
 
@@ -350,13 +613,12 @@ function App() {
           <h2>Mover la caravana nunca fue tan facil.</h2>
           <p>
             La cercania con Fuenlabrada, Humanes y Moraleja de En Medio lo
-            convierte en un punto muy practico para guardar el vehiculo y tenerlo
-            accesible cuando haga falta salir.
+            convierte en un punto practico para guardar el vehiculo y tenerlo accesible.
           </p>
           <div className="location-points">
             <div>
               <span className="hero-panel-key">Entorno</span>
-              <p>Poligono industrial con accesos mas naturales para vehiculos de mayor volumen.</p>
+              <p>Poligono industrial con accesos naturales para vehiculos de mayor volumen.</p>
             </div>
             <div>
               <span className="hero-panel-key">Superficie</span>
@@ -381,27 +643,31 @@ function App() {
 
       <section className="tariff-section" id="tarifa">
         <div className="tariff-copy">
-          <p className="section-kicker">Tarifa mensual</p>
-          <h2>Una cuota, un pago sencillo.</h2>
+          <p className="section-kicker">Tarifa y renovacion</p>
+          <h2>Primer pago flexible. Luego cuota fija el primer dia de cada mes.</h2>
+          <p>
+            El alta inicial se prorratea a 2 euros por dia hasta fin de mes. Desde el siguiente
+            ciclo, la plaza se renueva automaticamente por {formatCurrency(MONTHLY_RATE_CENTS)} al mes.
+          </p>
         </div>
 
         <div className="tariff-card">
           <p className="tariff-label">Plaza mensual</p>
-          <h3>60 EUR</h3>
-          <p className="tariff-note">Pago mensual con Stripe para iniciar la reserva de la plaza.</p>
+          <h3>{formatCurrency(MONTHLY_RATE_CENTS)}</h3>
+          <p className="tariff-note">Entrada inicial calculada por dias restantes del mes a 2 euros al dia.</p>
           <ul className="tariff-list">
-            <li>Aparcamiento en recinto hormigonado.</li>
-            <li>Ubicacion proxima a tres municipios clave.</li>
-            <li>Coordinacion directa para entrada e instrucciones.</li>
+            <li>Primer cobro prorrateado hasta el ultimo dia del mes.</li>
+            <li>Renovacion automatica el primer dia de cada mes.</li>
+            <li>Fechas controladas desde panel admin y backend.</li>
           </ul>
           <div className="tariff-actions">
             <button
               className="primary-action payment-button"
               type="button"
               onClick={openCheckoutModal}
-              disabled={isRedirectingToCheckout}
+              disabled={isRedirectingToCheckout || isAvailabilityLoading}
             >
-              {isRedirectingToCheckout ? 'Redirigiendo a Stripe...' : 'Pagar con Stripe'}
+              {isRedirectingToCheckout ? 'Redirigiendo a Stripe...' : 'Reservar con Stripe'}
             </button>
             <a className="secondary-action" href="#contacto">
               Consultar antes de pagar
@@ -413,7 +679,7 @@ function App() {
       <section className="process-section" id="proceso">
         <div className="process-header">
           <p className="section-kicker">Proceso</p>
-          <h2>Un recorrido claro desde la consulta hasta la entrada.</h2>
+          <h2>Un flujo mas claro tanto para el cliente como para ti.</h2>
         </div>
 
         <div className="process-grid">
@@ -430,7 +696,7 @@ function App() {
       <section className="faq-section">
         <div className="faq-header">
           <p className="section-kicker">Preguntas frecuentes</p>
-          <h2>Contenido enriquecido para resolver dudas sin obligar al usuario a llamar primero.</h2>
+          <h2>La parte comercial y la operativa quedan explicadas sin depender de llamadas previas.</h2>
         </div>
 
         <div className="faq-grid">
@@ -464,8 +730,8 @@ function App() {
               <p>Calle Malva 4, Humanes</p>
             </div>
             <div>
-              <span className="contact-label">Precio</span>
-              <p>60 euros al mes</p>
+              <span className="contact-label">Renovacion mensual</span>
+              <p>{formatCurrency(MONTHLY_RATE_CENTS)} el primer dia de cada mes</p>
             </div>
           </div>
 
@@ -474,9 +740,9 @@ function App() {
               className="primary-action payment-button"
               type="button"
               onClick={openCheckoutModal}
-              disabled={isRedirectingToCheckout}
+              disabled={isRedirectingToCheckout || isAvailabilityLoading}
             >
-              {isRedirectingToCheckout ? 'Redirigiendo a Stripe...' : 'Pagar con Stripe'}
+              {isRedirectingToCheckout ? 'Redirigiendo a Stripe...' : 'Reservar con Stripe'}
             </button>
             <a className="secondary-action call-action" href="tel:+34649448383">
               Llamar ahora
@@ -499,14 +765,33 @@ function App() {
           >
             <div className="checkout-modal-header">
               <div>
-                <p className="section-kicker">Pago y reserva</p>
-                <h2 id="checkout-modal-title">Antes de pagar, completa tus datos.</h2>
+                <p className="section-kicker">Reserva y pago</p>
+                <h2 id="checkout-modal-title">
+                  {availability.isFullyBooked
+                    ? 'Lo sentimos, estamos completos.'
+                    : 'Antes de pagar, completa tus datos.'}
+                </h2>
               </div>
               <button className="modal-close" type="button" onClick={closeCheckoutModal}>
                 Cerrar
               </button>
             </div>
 
+            {availability.isFullyBooked ? (
+              <div className="full-capacity-panel">
+                <p>
+                  Lo sentimos, estamos completos en este momento y no podemos aceptar nuevas reservas.
+                </p>
+                <div className="checkout-actions">
+                  <button className="secondary-action" type="button" onClick={closeCheckoutModal}>
+                    Cerrar
+                  </button>
+                  <a className="primary-action payment-button" href="#contacto" onClick={closeCheckoutModal}>
+                    Contactar
+                  </a>
+                </div>
+              </div>
+            ) : (
             <form className="checkout-form" onSubmit={handleStripeCheckout}>
               <label className="form-field">
                 <span>Nombre</span>
@@ -576,31 +861,159 @@ function App() {
 
               <div className="date-picker-block">
                 <div>
-                  <span className="section-kicker">Fechas disponibles</span>
-                  <p className="date-picker-help">Selecciona una fecha de entrada disponible para iniciar la plaza mensual.</p>
+                  <span className="section-kicker">Fechas de entrada</span>
+                  <p className="date-picker-help">
+                    Se muestran solo las fechas que quedan de este mes. Las bloqueadas tambien aparecen para que veas la ocupacion real.
+                  </p>
                 </div>
 
+                {availability.isFullyBooked ? (
+                  <p className="date-picker-help full-capacity-message">Estamos completos en este momento.</p>
+                ) : null}
+
                 <div className="available-dates-grid">
-                  {availableDates.map((date) => (
+                  {currentMonthCalendar.map((date) => (
                     <button
                       key={date.iso}
-                      className={date.iso === checkoutForm.startDate ? 'date-option selected-date' : 'date-option'}
+                      className={[
+                        'date-option',
+                        date.available ? 'available-date' : 'blocked-date',
+                        date.iso === checkoutForm.startDate ? 'selected-date' : '',
+                      ].filter(Boolean).join(' ')}
                       type="button"
-                      onClick={() => updateCheckoutField('startDate', date.iso)}
+                      onClick={() => {
+                        if (date.available) {
+                          updateCheckoutField('startDate', date.iso)
+                        }
+                      }}
+                      disabled={!date.available || availability.isFullyBooked}
                     >
                       <span>{date.weekday}</span>
                       <strong>{date.label}</strong>
+                      <small>{date.available ? 'Disponible' : 'No disponible'}</small>
                     </button>
                   ))}
                 </div>
+
+                {!isAvailabilityLoading && currentMonthCalendar.length === 0 ? (
+                  <p className="date-picker-help">No quedan fechas por mostrar en el mes actual.</p>
+                ) : null}
+
+                {!isAvailabilityLoading && currentMonthCalendar.length > 0 && currentMonthAvailableDates.length === 0 ? (
+                  <p className="date-picker-help">No quedan fechas de entrada libres este mes.</p>
+                ) : null}
               </div>
 
+              {selectedCharge ? (
+                <div className="charge-summary">
+                  <p className="section-kicker">Resumen del cobro</p>
+                  <div className="charge-summary-grid">
+                    <div>
+                      <span className="hero-panel-key">Entrada</span>
+                      <p>{selectedCharge.startDateIso}</p>
+                    </div>
+                    <div>
+                      <span className="hero-panel-key">Alta inicial</span>
+                      <p>{selectedCharge.amountLabel}</p>
+                    </div>
+                    <div>
+                      <span className="hero-panel-key">Dias incluidos</span>
+                      <p>{selectedCharge.daysRemaining} dias a {selectedCharge.dailyRateLabel}/dia</p>
+                    </div>
+                    <div>
+                      <span className="hero-panel-key">Siguiente cobro</span>
+                      <p>{selectedCharge.nextBillingDateLabel}</p>
+                    </div>
+                  </div>
+                  <p className="charge-summary-note">
+                    Desde esa fecha, Stripe renovara la plaza por {selectedCharge.monthlyRateLabel} al mes.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="checkout-actions">
-                <button className="primary-action payment-button" type="submit" disabled={isRedirectingToCheckout}>
+                <button className="primary-action payment-button" type="submit" disabled={isRedirectingToCheckout || availability.isFullyBooked}>
                   {isRedirectingToCheckout ? 'Redirigiendo a Stripe...' : 'Continuar al pago'}
                 </button>
                 <button className="secondary-action" type="button" onClick={closeCheckoutModal}>
                   Cancelar
+                </button>
+              </div>
+            </form>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {isAdminModalOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={closeAdminModal}>
+          <div
+            className="checkout-modal admin-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="checkout-modal-header">
+              <div>
+                <p className="section-kicker">Admin</p>
+                <h2 id="admin-modal-title">Gestiona las fechas disponibles.</h2>
+                <p className="admin-meta">Ultima actualizacion: {formatUpdatedAt(availability.updatedAt)}</p>
+              </div>
+              <button className="modal-close" type="button" onClick={closeAdminModal}>
+                Cerrar
+              </button>
+            </div>
+
+            <form className="admin-card" onSubmit={handleSaveAvailability}>
+              <label className="form-field">
+                <span>Contrasena admin</span>
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(event) => setAdminPassword(event.target.value)}
+                  placeholder="Introduce la contrasena"
+                />
+              </label>
+
+              <label className="admin-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={adminFullyBooked}
+                  onChange={(event) => setAdminFullyBooked(event.target.checked)}
+                />
+                <span>Estamos completos</span>
+              </label>
+
+              <div className="admin-calendar-grid">
+                {availability.calendar.map((date) => {
+                  const isBlocked = adminUnavailableDates.includes(date.iso)
+
+                  return (
+                    <button
+                      key={date.iso}
+                      className={isBlocked ? 'admin-date-option admin-date-blocked' : 'admin-date-option admin-date-open'}
+                      type="button"
+                      onClick={() => toggleAdminDate(date.iso)}
+                      disabled={isAvailabilityLoading || isSavingAvailability}
+                    >
+                      <span>{date.weekday}</span>
+                      <strong>{date.label}</strong>
+                      <small>{isBlocked ? 'Bloqueada' : 'Disponible'}</small>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {adminError ? <p className="admin-feedback error-text">{adminError}</p> : null}
+              {adminSuccess ? <p className="admin-feedback success-text">{adminSuccess}</p> : null}
+
+              <div className="checkout-actions">
+                <button className="primary-action payment-button" type="submit" disabled={isSavingAvailability}>
+                  {isSavingAvailability ? 'Guardando...' : 'Guardar disponibilidad'}
+                </button>
+                <button className="secondary-action" type="button" onClick={closeAdminModal}>
+                  Cerrar
                 </button>
               </div>
             </form>

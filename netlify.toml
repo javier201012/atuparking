@@ -9,6 +9,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/availability"
+  to = "/.netlify/functions/get-availability"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/availability"
+  to = "/.netlify/functions/update-availability"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

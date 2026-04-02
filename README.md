@@ -1,6 +1,6 @@
-# Serviparking
+# Atuparking
 
-Proyecto base con Vite + React para una web de aparcamiento de caravanas.
+Proyecto base con Vite + React para una web de parking de caravanas.
 
 ## Stack
 
@@ -10,7 +10,7 @@ Proyecto base con Vite + React para una web de aparcamiento de caravanas.
 
 ## Scripts
 
-- `npm run api`: API local para Stripe
+- `npm run api`: API local para Stripe y disponibilidad
 - `npm run dev`: entorno de desarrollo
 - `npm run dev:full`: frontend + API de Stripe a la vez
 - `npm run build`: build de produccion
@@ -25,7 +25,7 @@ La integracion de pago usa Stripe Checkout con una API propia para no exponer la
 2. Añade tu clave `STRIPE_SECRET_KEY`
 3. Ejecuta `npm run dev:full`
 
-La API crea una suscripcion mensual de 60 euros y redirige a Stripe para completar el pago.
+La API crea un alta inicial prorrateada a 2 euros por dia hasta fin de mes y deja preparada la renovacion mensual de 60 euros el primer dia de cada mes.
 
 ## Netlify
 
@@ -36,17 +36,19 @@ Variables de entorno necesarias en Netlify:
 - `STRIPE_SECRET_KEY`
 - `MONGODB_URI`
 - `MONGODB_DB_NAME`
+- `ADMIN_PANEL_PASSWORD`
 
-El proyecto incluye una funcion en `netlify/functions/create-checkout-session.js` y una redireccion para que `POST /api/create-checkout-session` funcione tambien en produccion.
+El proyecto incluye funciones en `netlify/functions/` para checkout, lectura de disponibilidad y actualizacion del panel admin, con redirects en `netlify.toml`.
 
 ## Estado actual
 
-- Landing inicial en espanol
-- Informacion comercial principal visible desde el bloque inicial
+- Landing en espanol con branding Atuparking
+- Primer cobro prorrateado y renovacion mensual automatica
+- Panel admin basico para bloquear o liberar fechas
 - Diseño responsive orientado a presentar servicios, ventajas y contacto
 
 ## Siguientes ampliaciones recomendadas
 
-- Añadir formulario de consulta o reserva
-- Integrar mapa, galeria o testimonios si el negocio los necesita
+- Añadir autenticacion admin mas robusta si el negocio crece
+- Integrar webhooks de Stripe para confirmar pagos y renovaciones
 - Ajustar SEO y textos finales de marca
