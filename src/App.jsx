@@ -176,6 +176,7 @@ function App() {
   const [availabilityError, setAvailabilityError] = useState('')
   const [adminError, setAdminError] = useState('')
   const [adminSuccess, setAdminSuccess] = useState('')
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(true)
   const [isRedirectingToCheckout, setIsRedirectingToCheckout] = useState(false)
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
@@ -254,8 +255,13 @@ function App() {
     ? calculateFirstMonthCharge(checkoutForm.startDate)
     : null
 
+  function closeMobileMenu() {
+    setIsMobileMenuOpen(false)
+  }
+
   function openCheckoutModal() {
     setPaymentError('')
+    closeMobileMenu()
     setIsCheckoutModalOpen(true)
   }
 
@@ -272,6 +278,7 @@ function App() {
     setAdminSuccess('')
     setAdminUnavailableDates(availability.unavailableDates)
     setAdminFullyBooked(availability.isFullyBooked)
+    closeMobileMenu()
     setIsAdminModalOpen(true)
   }
 
@@ -477,9 +484,29 @@ function App() {
           </div>
         </a>
 
-        <nav className="main-nav" aria-label="Menu principal">
+        <button
+          className="mobile-menu-toggle"
+          type="button"
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="main-nav"
+          aria-label={isMobileMenuOpen ? 'Cerrar menu principal' : 'Abrir menu principal'}
+          onClick={() => setIsMobileMenuOpen((current) => !current)}
+        >
+          <span className="mobile-menu-toggle-lines" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+          <span>Menu</span>
+        </button>
+
+        <nav
+          id="main-nav"
+          className={isMobileMenuOpen ? 'main-nav main-nav-open' : 'main-nav'}
+          aria-label="Menu principal"
+        >
           {navItems.map((item) => (
-            <a key={item.href} href={item.href}>
+            <a key={item.href} href={item.href} onClick={closeMobileMenu}>
               {item.label}
             </a>
           ))}
