@@ -528,7 +528,10 @@ function App() {
       <section className="hero-section modern-hero">
         <div className="hero-copy">
           <p className="eyebrow">Parking mensual para caravanas</p>
-          <h1>Reserva una plaza en Humanes con alta inicial prorrateada y renovacion fija el primer dia de cada mes.</h1>
+          <h1>
+            Reserva una plaza en Humanes
+            <span className="hero-subtitle">con alta inicial prorrateada y renovacion fija el primer dia de cada mes.</span>
+          </h1>
 
           <aside className="hero-panel offer-panel" aria-label="Resumen comercial principal">
             <p className="panel-label">Resumen principal</p>
