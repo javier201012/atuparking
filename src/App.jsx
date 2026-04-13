@@ -250,6 +250,13 @@ function App() {
 
   const currentMonthCalendar = availability.calendar.filter((date) => isCurrentMonthDate(date.iso))
   const currentMonthAvailableDates = currentMonthCalendar.filter((date) => date.available)
+  const heroAvailabilityText = isAvailabilityLoading
+    ? 'Cargando fechas...'
+    : availability.isFullyBooked
+      ? 'Estamos completos'
+      : currentMonthAvailableDates.length > 0
+        ? `${currentMonthAvailableDates.length} fechas disponibles este mes`
+        : 'Sin fechas disponibles este mes'
 
   const selectedCharge = checkoutForm.startDate
     ? calculateFirstMonthCharge(checkoutForm.startDate)
@@ -558,11 +565,7 @@ function App() {
               </div>
               <div>
                 <span className="hero-panel-key">Disponibilidad</span>
-                <p>
-                  {isAvailabilityLoading
-                    ? 'Cargando fechas...'
-                    : `${availability.availableDates.length} fechas abiertas ahora`}
-                </p>
+                <p>{heroAvailabilityText}</p>
               </div>
             </div>
 
